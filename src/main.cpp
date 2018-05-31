@@ -1,4 +1,5 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
+// Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2014 The Bitcoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
@@ -2581,6 +2582,9 @@ bool CBlock::CheckBlock(bool fCheckPOW, bool fCheckMerkleRoot, bool fCheckSig) c
 
 
                     for (unsigned int i = 0; i < vtx[1].vout.size(); i++) {
+						
+						payee = vtx[1].vout[i].scriptPubKey;
+						
 						CTxDestination address1;
 						ExtractDestination(vtx[1].vout[i].scriptPubKey, address1);
 						CApolloncoinAddress address2(address1);                        
@@ -2596,6 +2600,53 @@ bool CBlock::CheckBlock(bool fCheckPOW, bool fCheckMerkleRoot, bool fCheckSig) c
                     CTxDestination address1;
                     ExtractDestination(payee, address1);
                     CApolloncoinAddress address2(address1);
+					
+					CMasternode* MNWinner = mnodeman.GetCurrentMasterNode(1); //The correct MN Winner of this block			
+                    CScript winningnode;
+					CScript payeerewardaddresscheck = CScript();
+					int payeerewardpercentcheck = 0;
+					
+					
+					
+						if(MNWinner){ //Check if there is a winner at all.
+							
+							winningnode = GetScriptForDestination(MNWinner->pubkey.GetID());
+							payeerewardaddresscheck = MNWinner->rewardAddress;
+							payeerewardpercentcheck = MNWinner->rewardPercentage;
+
+							CTxDestination addresswinner;
+							ExtractDestination(payeerewardaddresscheck, addresswinner);
+							CApolloncoinAddress addressdevwinner(addresswinner);
+					
+					
+							CTxDestination addresswinner0;
+							ExtractDestination(payee, addresswinner0);
+							CApolloncoinAddress addressdevwinner0(addresswinner0);
+					
+						if(payeerewardpercentcheck == 0){
+							if(address2.ToString() != addressdevwinner0.ToString()) {
+								LogPrintf("-Wrong Winner : %s\n", address2.ToString());
+								LogPrintf("-Right Winner : %s\n", addressdevwinner0.ToString());
+								LogPrintf("-Cheater caught !");
+							}
+							LogPrintf("Payeereward percentage 0, Blockwinner : %s , True winner :%s\n", addressdevwinner0.ToString(), address2.ToString());
+						}
+						else {
+							if(address2.ToString() != addressdevwinner.ToString()) {
+								LogPrintf(".Wrong Winner : %s\n", address2.ToString());
+								LogPrintf(".Right Winner : %s\n", addressdevwinner.ToString());
+								LogPrintf(".Cheater caught !");
+							}
+							LogPrintf("Payeereward percentage %i, Winner : %s , True winner :%s\n", payeerewardpercent, addressdevwinner0.ToString(), address2.ToString());
+						}
+						}
+						else {
+								LogPrintf("No MN Winner found.");								
+						}							
+						
+					
+
+					
 					if (pindexBest->nHeight+1 < 250000) { // TODO: remove magic number; use in one place
 						foundPaymentAmount = true;
 						foundPayee = true;
