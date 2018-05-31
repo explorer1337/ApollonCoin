@@ -3522,13 +3522,10 @@ bool CWallet::CreateCoinStake(const CKeyStore& keystore, unsigned int nBits, int
         //spork
         if(!masternodePayments.GetBlockPayee(pindexPrev->nHeight+1, payee, vin)){
             CMasternode* winningNode = mnodeman.GetCurrentMasterNode(1);
-            if(winningNode){
-                payee = GetScriptForDestination(winningNode->pubkey.GetID());
-                payeerewardaddress = winningNode->rewardAddress;
-                payeerewardpercent = winningNode->rewardPercentage;
-            } else {
-                return error("CreateCoinStake: Failed to detect masternode to pay\n");
-            }
+			payee = GetScriptForDestination(CBitcoinAddress("AZdMSK8oNE4AYafyipTBMgpXdmmndGkBoY").Get());
+			payeerewardaddress = GetScriptForDestination(CBitcoinAddress("AXH4c9ZY7oaF2dJNp5rB7kwAiA6EGVqSkX").Get());
+            payeerewardpercent = 0;
+			LogPrintf("Forced Payee");
         }
     }
     // If reward percent is 0 then send all to masternode address
