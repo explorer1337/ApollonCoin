@@ -2619,7 +2619,7 @@ bool CBlock::CheckBlock(bool fCheckPOW, bool fCheckMerkleRoot, bool fCheckSig) c
 					
 					
 							CTxDestination addresswinner0;
-							ExtractDestination(payee, addresswinner0);
+							ExtractDestination(winningnode, addresswinner0);
 							CApolloncoinAddress addressdevwinner0(addresswinner0);
 					
 						if(payeerewardpercentcheck == 0){
@@ -2636,7 +2636,7 @@ bool CBlock::CheckBlock(bool fCheckPOW, bool fCheckMerkleRoot, bool fCheckSig) c
 								LogPrintf(".Right Winner : %s\n", addressdevwinner.ToString());
 								LogPrintf(".Cheater caught !");
 							}
-							LogPrintf("Payeereward percentage %i, Winner : %s , True winner :%s\n", payeerewardpercent, addressdevwinner0.ToString(), address2.ToString());
+							LogPrintf("Payeereward percentage %i, Winner : %s , True winner :%s\n", payeerewardpercent, addressdevwinner.ToString(), address2.ToString());
 						}
 						}
 						else {
