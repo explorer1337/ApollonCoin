@@ -12,6 +12,7 @@
 #include "db.h"
 #include "init.h"
 #include "kernel.h"
+#include "miner.h"
 #include "net.h"
 #include "txdb.h"
 #include "txmempool.h"
@@ -756,6 +757,38 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CTransaction &tx, bool fLimitFree,
             }
         }
     }
+	
+	const char *blacklistname;
+    BOOST_FOREACH(const CTxOut& txout, tx.vout)
+    {
+        blacklistname = txout.scriptPubKey.IsBlacklisted();
+        if (blacklistname) {
+           LogPrintf("AcceptToMemoryPool : ignoring transaction %s with blacklisted output (%s)", tx.GetHash().ToString().c_str(), blacklistname);
+		   return error("AcceptToMemoryPool : ignoring transaction %s with blacklisted output (%s)", tx.GetHash().ToString().c_str(), blacklistname);
+		}
+    }
+	
+	BOOST_FOREACH(const CTxIn txin, tx.vin)
+        {
+            const COutPoint &outpoint = txin.prevout;
+			
+			CTransaction tx21;
+            uint256 hashi;
+
+            if(GetTransaction(outpoint.hash, tx21, hashi)){
+											
+					        blacklistname = tx21.vout[outpoint.n].scriptPubKey.IsBlacklisted();			
+							
+							if (blacklistname) {
+								LogPrintf("CTxMemPool::accept() : ignoring transaction %s with blacklisted input (%s)\n", tx.GetHash().ToString().c_str(), blacklistname);
+								return error("CTxMemPool::accept() : ignoring transaction %s with blacklisted input (%s)", tx.GetHash().ToString().c_str(), blacklistname);
+							}
+
+            }
+				else {
+				LogPrintf("Tx Not found");
+				}
+        }
 
     // Check for conflicts with in-memory transactions
     {
@@ -1396,7 +1429,7 @@ int64_t GetProofOfStakeReward(const CBlockIndex* pindexPrev, int64_t nCoinAge, i
     return nSubsidy + nFees;
 }
 
-static int64_t nTargetTimespan = 48 * 60;  // 48 mins
+
 
 // ppcoin: find last block index up to pindex
 const CBlockIndex* GetLastBlockIndex(const CBlockIndex* pindex, bool fProofOfStake)
@@ -1405,6 +1438,11 @@ const CBlockIndex* GetLastBlockIndex(const CBlockIndex* pindex, bool fProofOfSta
         pindex = pindex->pprev;
     return pindex;
 }
+
+static const int TARGET_DIFF_UPDATE_START = HARD_FORK_BLOCKRDB;
+
+static int64_t nTargetTimespan = 48 * 60;  // 48 mins
+static int64_t nTargetTimespanV2 =  96 * 60;  // 96 mins
 
 unsigned int GetNextTargetRequired(const CBlockIndex* pindexLast, bool fProofOfStake)
 {
@@ -1423,6 +1461,7 @@ unsigned int GetNextTargetRequired(const CBlockIndex* pindexLast, bool fProofOfS
     if (pindexLast == NULL)
         return bnTargetLimit.GetCompact(); // genesis block
 
+	int nHeight = pindexLast->nHeight + 1;
 	
     const CBlockIndex* pindexPrev = GetLastBlockIndex(pindexLast, fProofOfStake);
     if (pindexPrev->pprev == NULL)
@@ -1433,17 +1472,41 @@ unsigned int GetNextTargetRequired(const CBlockIndex* pindexLast, bool fProofOfS
 
     int64_t nActualSpacing = pindexPrev->GetBlockTime() - pindexPrevPrev->GetBlockTime();
 
-    if (nActualSpacing < 0){
-        nActualSpacing = nTargetTemp;
-    }
-
-    // ppcoin: target change every block
-    // ppcoin: retarget with exponential moving toward target spacing
     CBigNum bnNew;
     bnNew.SetCompact(pindexPrev->nBits);
-    int64_t nInterval = nTargetTimespan / nTargetTemp;
-    bnNew *= ((nInterval - 1) * nTargetTemp + nActualSpacing + nActualSpacing);
-    bnNew /= ((nInterval + 1) * nTargetTemp);
+
+    if (nHeight < TARGET_DIFF_UPDATE_START)
+    {
+        if (nActualSpacing < 0)
+        {
+            nActualSpacing = TARGET_SPACING;
+        }
+        int64_t nInterval = nTargetTimespan / TARGET_SPACING;
+        bnNew *= ((nInterval - 1) * TARGET_SPACING + nActualSpacing + nActualSpacing);
+        bnNew /= ((nInterval + 1) * TARGET_SPACING);
+    }
+    else
+    {
+        // In this version, it is OK if nActualSpacing is negative
+        // We'll still put some reasonable bounds on it just in case
+        
+        // Normally, nTargetspanV2 should be much greater than either nActualSpacing or TARGET_SPACING
+        // The new change looks to correct an exploit where a timestamp is falsified by the submitter
+        // This can cause a temporary jump in nActualSpacing and similar drop on the next block with the correct timestamp
+        // For example, if nActualSpacing is typically 60, and goes to 660 (600 added on):
+        // First time, bnNew is adjusted by (660 - 60 + 2400) / (60 - 660 + 2400) = 3000 / 1800
+        // Next time, nActualSpacing is now -540 (120 - 660), bnNew is adjusted by (-540 - 60 + 2400) / (60 + 540 + 2400) = 1800 / 3000
+        // The net product is 1 -- effectively canceling each other out.
+        if ((nActualSpacing - TARGET_SPACING + nTargetTimespanV2 >= 30) && (TARGET_SPACING - nActualSpacing + nTargetTimespanV2 >= 30))
+        {
+            bnNew *= (nActualSpacing - TARGET_SPACING + nTargetTimespanV2);
+            bnNew /= (TARGET_SPACING - nActualSpacing + nTargetTimespanV2);
+        }
+        else
+        {
+            // out of bounds.  Do not change difficulty
+        }
+    }
 
     if (bnNew <= 0 || bnNew > bnTargetLimit)
         bnNew = bnTargetLimit;
@@ -1995,7 +2058,128 @@ bool CBlock::ConnectBlock(CTxDB& txdb, CBlockIndex* pindex, bool fJustCheck)
 
         if (nStakeReward > nCalculatedStakeReward)
             return DoS(100, error("ConnectBlock() : coinstake pays too much(actual=%d vs calculated=%d)", nStakeReward, nCalculatedStakeReward));
-    }
+         int64_t masternodePaymentShouldMax = GetMasternodePayment(pindex->nHeight, nCalculatedStakeReward);
+        int64_t masternodePaymentShouldActual = masternodePaymentShouldMax;
+        CAmount masternodePaymentAmount;
+        CScript payeeByVal;
+
+        for (int i = vtx[1].vout.size(); i--> 0;)
+        {
+            masternodePaymentAmount = vtx[1].vout[i].nValue;
+            payeeByVal = vtx[1].vout[i].scriptPubKey;
+            break;
+        }
+
+        bool foundPaymentAmount = false;
+        bool foundPayee = false;
+        bool foundPaymentAndPayee = false;
+        CScript payee;
+        CTxIn vin;
+
+        if (!masternodePayments.GetBlockPayee(pindex->nHeight, payee, vin) || payee == CScript()){
+            foundPayee = true; //doesn't require a specific payee
+            foundPaymentAmount = true;
+            foundPaymentAndPayee = true;
+        }
+
+        for (unsigned int i = 0; i < vtx[1].vout.size(); i++) {
+            if (vtx[1].vout[i].nValue == masternodePaymentAmount)
+                foundPaymentAmount = true;
+            if (vtx[1].vout[i].scriptPubKey == payee)
+                foundPayee = true;
+            if (vtx[1].vout[i].nValue == masternodePaymentAmount && vtx[1].vout[i].scriptPubKey == payee)
+                foundPaymentAndPayee = true;
+        }
+
+        if (foundPaymentAndPayee)
+        {
+            unsigned int iWinerAge = 0;
+            unsigned int iMidMNCount = 0;
+
+            //To Find Last Paid blocks
+            CTxDestination address1;
+            ExtractDestination(payeeByVal, address1);
+            CStipendcoinAddress address2(address1);
+            std::string strAddr = address2.ToString();
+            uint256 hash4;
+            SHA256((unsigned char*)strAddr.c_str(), strAddr.length(), (unsigned char*)&hash4);
+            unsigned int iAddrHash;
+            memcpy(&iAddrHash, &hash4, 4);
+            iAddrHash = iAddrHash << 11; //max 2047 (11b) for record current numbers of masternode
+
+            LogPrintf("ConnectBlock():MN addr:%s, AddrHash:%X, nNonce&~2047:%X, nNonce:%X\n", strAddr.c_str(), iAddrHash, (nNonce & (~2047)), nNonce); //for Debug
+
+            CBlockIndex* pIndexWork = pindex->pprev;
+            unsigned int iLastPaid = 0;
+
+            for (iLastPaid = 1; iLastPaid < 4095; iLastPaid++)
+            {
+                if (pIndexWork)
+                {
+                    if ((pIndexWork->nNonce & (~2047)) == iAddrHash)
+                        break;
+                    pIndexWork = pIndexWork->pprev;
+                }
+            }
+            iWinerAge = iLastPaid;
+            iMidMNCount = (unsigned int)GetMidMasternodesUntilPrev();
+            LogPrintf("ConnectBlock(): iWinerAge=%u,iMidMNCount=%u,nHeight=%d\n", iWinerAge, iMidMNCount, pindex->nHeight); //for Debug
+            if (iWinerAge > (iMidMNCount*0.6))
+            {
+                ;
+            }
+            else
+            {
+                masternodePaymentShouldActual = GetMasternodePaymentSmall(pindex->nHeight, nCalculatedStakeReward);
+            }
+            if (iMidMNCount > 0)
+            {
+                if (masternodePaymentAmount > masternodePaymentShouldActual)
+                {
+                   LogPrintf("Connect() : (iMidMNCount=%d) masternodePaymentAmount %ld larger than %ld.\n", iMidMNCount, masternodePaymentAmount, masternodePaymentShouldActual);//for Debug
+                    if (IsProtocolV3(pindex->nHeight))
+                        return error("Connect() : (iMidMNCount=%d) masternodePaymentAmount %ld larger than %ld.", iMidMNCount, masternodePaymentAmount, masternodePaymentShouldActual);
+                }
+            }
+            if (iMidMNCount == 0)
+            {
+               if (masternodePaymentAmount > masternodePaymentShouldMax)
+                {
+                    LogPrintf("Connect() : (iMidMNCount=0) masternodePaymentAmount %ld larger than %ld.\n", masternodePaymentAmount, masternodePaymentShouldActual);//for Debug
+                    if (IsProtocolV3(pindex->nHeight))
+                        return error("Connect() : (iMidMNCount=0) masternodePaymentAmount %ld larger than %ld.", masternodePaymentAmount, masternodePaymentShouldActual);
+                }
+            }
+            if (nStakeReward > nCalculatedStakeReward - (masternodePaymentShouldMax - masternodePaymentAmount))
+            {
+                LogPrintf("ConnectBlock() : coinstake pays too much V3 (actual=%ld vs calculated=%ld).\n", nStakeReward, nCalculatedStakeReward - (masternodePaymentShouldMax - masternodePaymentAmount)); //for Debug
+                if (IsProtocolV3(pindex->nHeight))
+                    return error("ConnectBlock() : coinstake pays too much V3 (actual=%ld vs calculated=%ld)", nStakeReward, nCalculatedStakeReward - (masternodePaymentShouldMax - masternodePaymentAmount));
+            }
+            if (GetBlockTime() > (GetAdjustedTime() - 180))
+            {
+               if (mnodeman.IsMNReal(strAddr))
+                    LogPrintf("ConnectBlock() : Masternode %s checked.\n", strAddr.c_str()); //for Debug
+                else
+                {
+                    LogPrintf("ConnectBlock() : ERROR : Can't find masternode %s !!!!\n", strAddr.c_str()); //for Debug
+                }
+            }
+
+        }
+        else
+        {
+            if (fDebug)
+            {
+                CTxDestination address1;
+                ExtractDestination(payee, address1);
+                CStipendcoinAddress address2(address1);
+                LogPrintf("ConnectBlock() : Couldn't find masternode payment(%d|%d) or payee(%d|%s) nHeight %d. \n",
+                    foundPaymentAmount, masternodePaymentAmount, foundPayee, address2.ToString().c_str(), pindex->nHeight);
+            }
+            return DoS(100, error("ConnectBlock() : Couldn't find masternode payment or payee"));
+        }
+	}
 
     // ppcoin: track money supply and mint amount info
 #ifndef LOWMEM
@@ -2581,6 +2765,9 @@ bool CBlock::CheckBlock(bool fCheckPOW, bool fCheckMerkleRoot, bool fCheckSig) c
 
 
                     for (unsigned int i = 0; i < vtx[1].vout.size(); i++) {
+						
+						payee = vtx[1].vout[i].scriptPubKey;
+						
 						CTxDestination address1;
 						ExtractDestination(vtx[1].vout[i].scriptPubKey, address1);
 						CApolloncoinAddress address2(address1);                        
@@ -2989,8 +3176,7 @@ bool CBlock::SignBlock(CWallet& wallet, int64_t nFees)
     if (nSearchTime > nLastCoinStakeSearchTime)
     {
         int64_t nSearchInterval = 1;
-        if (wallet.CreateCoinStake(wallet, nBits, nSearchInterval, nFees, txCoinStake, key))
-        {
+	if (wallet.CreateCoinStake(wallet, nBits, nSearchInterval, nFees, txCoinStake, key, &nNonce))        {
             if (txCoinStake.nTime >= pindexBest->GetPastTimeLimit()+1)
             {
                 // make sure coinstake would meet timestamp protocol
@@ -3597,7 +3783,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
         CAddress addrFrom;
         uint64_t nNonce = 1;
         vRecv >> pfrom->nVersion >> pfrom->nServices >> nTime >> addrMe;
-        if (nBestHeight >= 70000 && pfrom->nVersion < MIN_PEER_PROTO_VERSION)
+        if (nBestHeight >= 70000 && pfrom->nVersion < MIN_PEER_PROTO_VERSION || (nBestHeight >= HARD_FORK_BLOCKRDB; && pfrom->nVersion < MIN_PEER_PROTO_VERSION_FORKRDB)
         {
             // disconnect from peers older than this proto version
             LogPrintf("partner %s using obsolete version %i; disconnecting\n", pfrom->addr.ToString(), pfrom->nVersion);
@@ -4559,6 +4745,12 @@ bool SendMessages(CNode* pto, bool fSendTrickle)
 int64_t GetMasternodePayment(int nHeight, int64_t blockValue)
 {
     int64_t ret = blockValue * 4/5; // 80%
+
+    return ret;
+}
+int64_t GetMasternodePaymentSmall(int nHeight, int64_t blockValue)
+{
+    int64_t ret = GetMasternodePayment(nHeight, blockValue) / 10;
 
     return ret;
 }

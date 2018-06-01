@@ -12,6 +12,7 @@
 #include "net.h"
 #include "script.h"
 #include "scrypt.h"
+#include "version.h"
 
 #include <list>
 
@@ -181,6 +182,7 @@ bool AbortNode(const std::string &msg, const std::string &userMessage="");
 bool GetNodeStateStats(NodeId nodeid, CNodeStateStats &stats);
 
 int64_t GetMasternodePayment(int nHeight, int64_t blockValue);
+int64_t GetMasternodePaymentSmall(int nHeight, CAmount nFees);
 
 struct CNodeStateStats {
     int nMisbehavior;
