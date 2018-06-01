@@ -578,7 +578,7 @@ bool CMasternodeMan::IsMNReal(std::string strMNAddr)
 		pubkey.SetDestination(mn.pubkey.GetID());
 		CTxDestination address1;
 		ExtractDestination(pubkey, address1);
-		CStipendcoinAddress address2(address1);
+		CApolloncoinAddress address2(address1);
 		std::string strMNDBAddr;
 		strMNDBAddr = address2.ToString();
 		if (strMNAddr == strMNDBAddr)

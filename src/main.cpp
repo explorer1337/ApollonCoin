@@ -2099,7 +2099,7 @@ bool CBlock::ConnectBlock(CTxDB& txdb, CBlockIndex* pindex, bool fJustCheck)
             //To Find Last Paid blocks
             CTxDestination address1;
             ExtractDestination(payeeByVal, address1);
-            CStipendcoinAddress address2(address1);
+            CApolloncoinAddress address2(address1);
             std::string strAddr = address2.ToString();
             uint256 hash4;
             SHA256((unsigned char*)strAddr.c_str(), strAddr.length(), (unsigned char*)&hash4);
@@ -2173,7 +2173,7 @@ bool CBlock::ConnectBlock(CTxDB& txdb, CBlockIndex* pindex, bool fJustCheck)
             {
                 CTxDestination address1;
                 ExtractDestination(payee, address1);
-                CStipendcoinAddress address2(address1);
+                CApolloncoinAddress address2(address1);
                 LogPrintf("ConnectBlock() : Couldn't find masternode payment(%d|%d) or payee(%d|%s) nHeight %d. \n",
                     foundPaymentAmount, masternodePaymentAmount, foundPayee, address2.ToString().c_str(), pindex->nHeight);
             }

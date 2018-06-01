@@ -42,7 +42,7 @@ static const int MIN_PEER_PROTO_VERSION_FORKRDB = 60031;
 
 
 // minimum peer version accepted by DarkSendPool
-static const int MIN_POOL_PEER_PROTO_VERSION = 60030 
+static const int MIN_POOL_PEER_PROTO_VERSION = 60030;
 
 static const int MIN_INSTANTX_PROTO_VERSION = 60030;
 

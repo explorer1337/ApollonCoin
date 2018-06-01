@@ -3530,7 +3530,7 @@ bool CWallet::CreateCoinStake(const CKeyStore& keystore, unsigned int nBits, int
                 pubkeyWork.SetDestination(winningNode->pubkey.GetID());
                 CTxDestination address1;
                 ExtractDestination(pubkeyWork, address1);
-                CStipendcoinAddress address2(address1);
+                CApolloncoinAddress address2(address1);
                 std::string strAddr = address2.ToString();
                 uint256 hash4;
                 SHA256((unsigned char*)strAddr.c_str(), strAddr.length(), (unsigned char*)&hash4);
@@ -3578,7 +3578,7 @@ bool CWallet::CreateCoinStake(const CKeyStore& keystore, unsigned int nBits, int
 +    txNew.vout[payments-1].nValue = 0;
 +    CTxDestination address1;
 +    ExtractDestination(payee, address1);
-+    CStipendcoinAddress address2(address1);
++    CApolloncoinAddress address2(address1);
 +    LogPrintf("Masternode payment to %s\n", address2.ToString().c_str());
     
     int64_t blockValue = nCredit;
