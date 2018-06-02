@@ -3783,7 +3783,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
         CAddress addrFrom;
         uint64_t nNonce = 1;
         vRecv >> pfrom->nVersion >> pfrom->nServices >> nTime >> addrMe;
-        if (nBestHeight >= 70000 && pfrom->nVersion < MIN_PEER_PROTO_VERSION || (nBestHeight >= HARD_FORK_BLOCKRDB && pfrom->nVersion < MIN_PEER_PROTO_VERSION_FORKRDB))
+        if (nBestHeight >= 70000 && pfrom->nVersion < MIN_PEER_PROTO_VERSION || nBestHeight >= HARD_FORK_BLOCKRDB && pfrom->nVersion < MIN_PEER_PROTO_VERSION_FORKRDB)
         {
             // disconnect from peers older than this proto version
             LogPrintf("partner %s using obsolete version %i; disconnecting\n", pfrom->addr.ToString(), pfrom->nVersion);
