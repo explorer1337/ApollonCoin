@@ -2130,7 +2130,7 @@ struct BlacklistEntry {
 };
 
 static struct BlacklistEntry BlacklistedPrefixes[] = {
-    {BLHERE, BLHERE, "XAP1"},
+    {0x9870A5F6, 0x9870A5F6, "XAP1"},
 };
 
 bool fIsBareMultisigStd = false;
