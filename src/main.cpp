@@ -1479,11 +1479,11 @@ unsigned int GetNextTargetRequired(const CBlockIndex* pindexLast, bool fProofOfS
     {
         if (nActualSpacing < 0)
         {
-            nActualSpacing = TARGET_SPACING;
+            nActualSpacing = nTargetTemp;
         }
-        int64_t nInterval = nTargetTimespan / TARGET_SPACING;
-        bnNew *= ((nInterval - 1) * TARGET_SPACING + nActualSpacing + nActualSpacing);
-        bnNew /= ((nInterval + 1) * TARGET_SPACING);
+			int64_t nInterval = nTargetTimespan / nTargetTemp;
+			bnNew *= ((nInterval - 1) * nTargetTemp + nActualSpacing + nActualSpacing);
+			bnNew /= ((nInterval + 1) * nTargetTemp);
     }
     else
     {
