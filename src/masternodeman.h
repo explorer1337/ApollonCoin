@@ -136,13 +136,11 @@ public:
     unsigned int GetMasternodeCount(int64_t nBlockHeight = 0);
     int GetMasternodeRank(const CTxIn &vin, int64_t nBlockHeight, int minProtocol = 0, bool fOnlyActive = true);    CMasternode* GetMasternodeByRank(int nRank, int64_t nBlockHeight, int minProtocol=0, bool fOnlyActive=true);
  
-     void ProcessMasternodeConnections();
+      CMasternode* GetMasternodeByRank(int nRank, int64_t nBlockHeight, int minProtocol=0, bool fOnlyActive=true);
  
+     void ProcessMasternodeConnections();
 
-
-    void ProcessMasternodeConnections();
-
-    void ProcessMessage(CNode* pfrom, std::string& strCommand, CDataStream& vRecv);
+	 void ProcessMessage(CNode* pfrom, std::string& strCommand, CDataStream& vRecv);
 
     // Return the number of (unique) masternodes
     int size() { return vMasternodes.size(); }
