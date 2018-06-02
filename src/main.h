@@ -184,6 +184,8 @@ bool GetNodeStateStats(NodeId nodeid, CNodeStateStats &stats);
 int64_t GetMasternodePayment(int nHeight, int64_t blockValue);
 int64_t GetMasternodePaymentSmall(int nHeight, CAmount nFees);
 
+inline bool IsProtocolV3(int nHeight) { return TestNet() || nHeight > HARD_FORK_BLOCKRDB; }
+
 struct CNodeStateStats {
     int nMisbehavior;
 };
